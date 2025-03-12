@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vSphere Simulator</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: #f8f9fa;
+            color: #2c3e50;
+            overflow-x: hidden;
+            display: flex;
+        }
+        .sidebar {
+            width: 200px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: fit-content;
+            margin-top: 110px;
+        }
+        .main-container {
+            flex: 1;
+            margin-left: 30px;
+        }
+        .header {
+            background: #34495e;
+            padding: 20px 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            color: #fff;
+            position: relative;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+            font-weight: 600;
+        }
+        .help-icon {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+            font-size: 1.5em;
+        }
+        .help-guide {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 20px;
+            background: #fff;
+            color: #2c3e50;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 10;
+            max-width: 300px;
+            text-align: left;
+        }
+        .help-guide ul {
+            padding-left: 20px;
+        }
+        .controls {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .cluster {
+            display: flex;
+            gap: 30px;
+            margin: 30px 0;
+            overflow-x: auto;
+            padding-bottom: 15px;
+        }
+        .host-container {
+            min-width: 200px;
+            max-width: 200px;
+            text-align: center;
+            position: relative;
+        }
+        .host {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .host.maintenance {
+            background: #f39c12;
+            opacity: 0.9;
+        }
+        .host.failed {
+            background: #e74c3c;
+        }
+        .vms-container {
+            height: 90px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-content: flex-start;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .vm-row {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+        .vm {
+            padding: 5px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            cursor: move;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 55px;
+            text-align: center;
+            z-index: 1;
+        }
+        .vm:hover::after {
+            content: attr(data-config);
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #34495e;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        .vm.migrating {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+        .exit-maintenance-btn {
+            display: none;
+            margin-top: 10px;
+            padding: 8px 15px;
+            background: #7f8c8d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .exit-maintenance-btn:hover {
+            background: #95a5a6;
+            transform: translateY(-2px);
+        }
+        .storage {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+        .datastores-container {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+        }
+        .datastore {
+            flex: 1;
+            min-width: 220px;
+            text-align: center;
+        }
+        .circle {
+            width: 120px;
+            height: 120px;
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 50%;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            transition: border-color 0.3s ease;
+        }
+        .circle.highlighted {
+            border-color: #3498db;
+        }
+        .circle-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: var(--fill);
+            background: #ecf0f1;
+            z-index: 0;
+        }
+        .vm-legend {
+            position: relative;
+            z-index: 1;
+            color: #000;
+            font-size: 0.8em;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #7f8c8d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        button:hover {
+            background: #95a5a6;
+            transform: translateY(-2px);
+        }
+        .status {
+            padding: 10px 20px;
+            background: #f1c40f;
+            color: #2c3e50;
+            border-radius: 6px;
+            font-size: 0.9em;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .datastore-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <button onclick="simulateHA()">HA Failover</button>
+        <button onclick="performVMotion()">vMotion</button>
+        <button onclick="runDRS()">DRS</button>
+        <button onclick="runStorageDRS()">Storage DRS</button>
+        <button onclick="performStorageVMotion()">Storage vMotion</button>
+        <button onclick="toggleMaintenance()">Maintenance</button>
+        <button onclick="resetEnvironment()">Reset</button>
+    </div>
+    <div class="main-container">
+        <div class="header">
+            <h1>vSphere Simulator</h1>
+            <span class="help-icon" onclick="toggleHelp()">❓</span>
+            <div class="help-guide" id="helpGuide">
+                <h3>How to Use the Simulator:</h3>
+                <ul>
+                    <li>Click "HA Failover" to simulate a random host failure and VM failover.</li>
+                    <li>Use "vMotion" to manually migrate a VM or drag-and-drop VMs between hosts.</li>
+                    <li>Select "DRS" to balance CPU load across hosts.</li>
+                    <li>Click "Storage DRS" to evenly balance VMs across datastores.</li>
+                    <li>Click a VM to highlight its datastore, then drag it to another datastore for Storage vMotion.</li>
+                    <li>Use "Storage vMotion" button to auto-migrate a VM’s storage.</li>
+                    <li>Click a host then "Maintenance" to enter maintenance mode; use "Exit Maintenance" below the host to exit.</li>
+                    <li>Press "Reset" to restore the initial state.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="controls">
+            <div class="status" id="status">Cluster Status: Operational</div>
+        </div>
+        <div class="cluster" id="cluster"></div>
+        <div class="storage" id="storage">
+            <h2>Datastores</h2>
+            <div class="datastores-container" id="datastores"></div>
+        </div>
+    </div>
+
+    <script>
+        class VM {
+            constructor(id, cpu, ram, storage, datastore) {
+                this.id = id;
+                this.cpu = cpu;
+                this.ram = ram;
+                this.storage = storage;
+                this.datastore = datastore;
+                this.color = this.assignUniqueColor();
+            }
+
+            assignUniqueColor() {
+                const availableColors = [
+                    '#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6',
+                    '#e91e63', '#1abc9c', '#f39c12', '#8e44ad', '#27ae60',
+                    '#d35400', '#16a085', '#c0392b', '#2980b9', '#7f8c8d',
+                    '#d35400', '#16a085', '#ff5733'
+                ];
+                const usedColors = vms.map(vm => vm.color);
+                const unusedColors = availableColors.filter(color => !usedColors.includes(color));
+                return unusedColors.length > 0 ? unusedColors[0] : availableColors[Math.floor(Math.random() * availableColors.length)];
+            }
+        }
+
+        class Host {
+            constructor(id) {
+                this.id = id;
+                this.vms = [];
+                this.active = true;
+                this.maintenance = false;
+                this.maxCpu = 32;
+                this.maxRam = 128;
+            }
+
+            getUsedResources() {
+                return this.vms.reduce((acc, vm) => ({
+                    cpu: acc.cpu + vm.cpu,
+                    ram: acc.ram + vm.ram
+                }), { cpu: 0, ram: 0 });
+            }
+        }
+
+        const datastores = [
+            { 
+                name: 'NFS-01', 
+                type: 'NFS', 
+                capacity: 6000, 
+                used: 0, 
+                vms: [], 
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>'
+            },
+            { 
+                name: 'iSCSI-01', 
+                type: 'iSCSI', 
+                capacity: 4800, 
+                used: 0, 
+                vms: [], 
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M3 3h18v18H3V3zm2 2v14h14V5H5zm2 2h10v2H7V7zm0 4h10v2H7v-2zm0 4h10v2H7v-2z"/></svg>'
+            },
+            { 
+                name: 'SAN-01', 
+                type: 'SAN', 
+                capacity: 7200, 
+                used: 0, 
+                vms: [], 
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>'
+            },
+            { 
+                name: 'SAN-02', 
+                type: 'SAN', 
+                capacity: 7200, 
+                used: 0, 
+                vms: [], 
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>'
+            },
+            { 
+                name: 'SAN-03', 
+                type: 'SAN', 
+                capacity: 7200, 
+                used: 0, 
+                vms: [], 
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>'
+            }
+        ];
+
+        let hosts = [];
+        let vms = [];
+        let selectedHost = null;
+        let selectedVM = null;
+
+        function initializeEnvironment() {
+            hosts = Array(6).fill().map((_, i) => new Host(`ESXi-${i + 1}`));
+            vms = [];
+            for (let i = 0; i < 18; i++) {
+                const ds = datastores[Math.floor(i / 4)];
+                const storage = Math.floor(ds.capacity * 0.5 / 4);
+                const vm = new VM(
+                    `VM${String.fromCharCode(65 + i)}${Math.floor(Math.random() * 100)}`,
+                    Math.floor(Math.random() * 4) + 1,
+                    Math.floor(Math.random() * 8) + 2,
+                    storage,
+                    ds.name
+                );
+                ds.used += storage;
+                ds.vms.push(vm.id);
+                vms.push(vm);
+            }
+
+            vms.forEach((vm, i) => {
+                hosts[i % 6].vms.push(vm);
+            });
+            selectedHost = null;
+            selectedVM = null;
+            renderCluster();
+        }
+
+        function renderCluster() {
+            const clusterDiv = document.getElementById('cluster');
+            clusterDiv.innerHTML = '';
+            
+            hosts.forEach(host => {
+                const hostContainer = document.createElement('div');
+                hostContainer.className = 'host-container';
+                
+                const hostDiv = document.createElement('div');
+                hostDiv.className = `host ${host.active ? '' : 'failed'} ${host.maintenance ? 'maintenance' : ''}`;
+                const resources = host.getUsedResources();
+                
+                hostDiv.innerHTML = `
+                    <h3>${host.id}${host.maintenance ? ' (Maint)' : ''}${!host.active ? ' (Failed)' : ''}</h3>
+                    <div>CPU: ${resources.cpu}/${host.maxCpu}</div>
+                    <div>RAM: ${resources.ram}/${host.maxRam} GB</div>
+                `;
+                hostDiv.onclick = () => selectHost(host);
+                
+                const vmsDiv = document.createElement('div');
+                vmsDiv.className = 'vms-container';
+                for (let row = 0; row < 3; row++) {
+                    const vmRow = document.createElement('div');
+                    vmRow.className = 'vm-row';
+                    for (let col = 0; col < 3; col++) {
+                        const vmIndex = row * 3 + col;
+                        if (vmIndex < host.vms.length) {
+                            const vm = host.vms[vmIndex];
+                            const vmDiv = document.createElement('div');
+                            vmDiv.className = 'vm';
+                            vmDiv.draggable = true;
+                            vmDiv.dataset.vmId = vm.id;
+                            vmDiv.textContent = vm.id;
+                            vmDiv.dataset.config = `${vm.cpu}vCPU, ${vm.ram}GB, ${vm.storage}GB (${vm.datastore})`;
+                            vmDiv.style.backgroundColor = vm.color;
+                            vmDiv.onclick = () => selectVM(vm);
+                            vmDiv.ondragstart = (e) => e.dataTransfer.setData('vmId', vm.id);
+                            vmRow.appendChild(vmDiv);
+                        }
+                    }
+                    vmsDiv.appendChild(vmRow);
+                }
+                
+                const exitBtn = document.createElement('button');
+                exitBtn.className = 'exit-maintenance-btn';
+                exitBtn.textContent = 'Exit Maintenance';
+                exitBtn.style.display = host.maintenance ? 'block' : 'none';
+                exitBtn.onclick = () => exitMaintenance(host);
+                
+                hostDiv.ondragover = (e) => e.preventDefault();
+                hostDiv.ondrop = (e) => handleHostDrop(e, host);
+                hostContainer.appendChild(vmsDiv);
+                hostContainer.appendChild(hostDiv);
+                hostContainer.appendChild(exitBtn);
+                clusterDiv.appendChild(hostContainer);
+            });
+
+            renderStorage();
+        }
+
+        function renderStorage() {
+            const datastoresDiv = document.getElementById('datastores');
+            datastoresDiv.innerHTML = '';
+            
+            datastores.forEach(ds => {
+                const dsDiv = document.createElement('div');
+                dsDiv.className = 'datastore';
+                const percent = (ds.used / ds.capacity) * 100;
+                const coloredVMs = ds.vms.map(id => {
+                    const vm = vms.find(v => v.id === id);
+                    return `<div style="color: ${vm ? vm.color : '#000'}">${id}</div>`;
+                }).join('');
+                dsDiv.innerHTML = `
+                    <div class="circle ${selectedVM && selectedVM.datastore === ds.name ? 'highlighted' : ''}" data-ds-name="${ds.name}">
+                        <div class="circle-fill" style="--fill: ${percent}%"></div>
+                        <div class="vm-legend">${coloredVMs || 'No VMs'}</div>
+                    </div>
+                    <div><span class="datastore-icon">${ds.icon}</span>${ds.name} (${ds.type}): ${ds.used}GB / ${ds.capacity}GB</div>
+                `;
+                const circle = dsDiv.querySelector('.circle');
+                circle.ondragover = (e) => e.preventDefault();
+                circle.ondrop = (e) => handleStorageDrop(e, ds);
+                datastoresDiv.appendChild(dsDiv);
+            });
+        }
+
+        function selectHost(host) {
+            if (host.active && !host.maintenance) {
+                selectedHost = host;
+                updateStatus(`Selected ${host.id} for maintenance`);
+            }
+        }
+
+        function selectVM(vm) {
+            selectedVM = vm;
+            updateStatus(`Selected ${vm.id} for Storage vMotion`);
+            renderCluster();
+        }
+
+        function handleHostDrop(e, targetHost) {
+            e.preventDefault();
+            const vmId = e.dataTransfer.getData('vmId');
+            const vm = findVM(vmId);
+            if (vm && targetHost.active && !targetHost.maintenance && targetHost.vms.length < 9) {
+                performMigration(vm, targetHost);
+            }
+        }
+
+        function handleStorageDrop(e, targetDS) {
+            e.preventDefault();
+            const vmId = e.dataTransfer.getData('vmId');
+            const vm = findVM(vmId);
+            if (vm && vm.datastore !== targetDS.name && targetDS.used + vm.storage <= targetDS.capacity) {
+                performStorageMigration(vm, targetDS);
+            }
+        }
+
+        function findVM(vmId) {
+            return vms.find(vm => vm.id === vmId) || null;
+        }
+
+        function performMigration(vm, targetHost) {
+            const sourceHost = hosts.find(h => h.vms.includes(vm));
+            if (!sourceHost || sourceHost === targetHost || !targetHost.active || targetHost.maintenance || targetHost.vms.length >= 9) {
+                console.log(`Migration failed: VM=${vm.id}, Source=${sourceHost?.id}, Target=${targetHost.id}`);
+                return;
+            }
+            
+            sourceHost.vms = sourceHost.vms.filter(v => v !== vm);
+            targetHost.vms.push(vm);
+            renderCluster();
+            updateStatus(`vMotion: ${vm.id} migrated to ${targetHost.id}`);
+        }
+
+        function performStorageMigration(vm, targetDS) {
+            const sourceDS = datastores.find(ds => ds.name === vm.datastore);
+            if (!sourceDS || sourceDS === targetDS || targetDS.used + vm.storage > targetDS.capacity) return;
+            
+            sourceDS.used -= vm.storage;
+            sourceDS.vms = sourceDS.vms.filter(id => id !== vm.id);
+            targetDS.used += vm.storage;
+            targetDS.vms.push(vm.id);
+            vm.datastore = targetDS.name;
+            selectedVM = null;
+            renderCluster();
+            updateStatus(`Storage vMotion: ${vm.id} migrated to ${targetDS.name}`);
+        }
+
+        function distributeVMs(sourceHost) {
+            const targetHosts = hosts.filter(h => h.active && !h.maintenance && h !== sourceHost);
+            if (targetHosts.length === 0) {
+                updateStatus('No available hosts for VM distribution');
+                return;
+            }
+
+            const vmsToDistribute = sourceHost.vms.slice();
+            sourceHost.vms = [];
+            
+            let hostIndex = 0;
+            for (const vm of vmsToDistribute) {
+                const targetHost = targetHosts[hostIndex % targetHosts.length];
+                if (targetHost.vms.length < 9) {
+                    targetHost.vms.push(vm);
+                    console.log(`Distributed ${vm.id} to ${targetHost.id}`);
+                } else {
+                    // Find the next available host if current one is full
+                    const availableHost = targetHosts.find(h => h.vms.length < 9);
+                    if (availableHost) {
+                        availableHost.vms.push(vm);
+                        console.log(`Distributed ${vm.id} to ${availableHost.id}`);
+                    } else {
+                        console.log(`No space for ${vm.id}`);
+                        sourceHost.vms.push(vm); // Put back if no space
+                    }
+                }
+                hostIndex++;
+            }
+            renderCluster();
+        }
+
+        function simulateHA() {
+            const activeHosts = hosts.filter(h => h.active && !h.maintenance);
+            if (activeHosts.length <= 1) {
+                updateStatus('HA: Not enough active hosts');
+                return;
+            }
+            
+            const failedHost = activeHosts[Math.floor(Math.random() * activeHosts.length)];
+            failedHost.active = false;
+            updateStatus(`HA Event: ${failedHost.id} failed`);
+            
+            distributeVMs(failedHost);
+        }
+
+        function performVMotion() {
+            const sourceHost = hosts.find(h => h.active && !h.maintenance && h.vms.length > 0);
+            const targetHost = hosts.find(h => h.active && !h.maintenance && h !== sourceHost && h.vms.length < 9);
+            if (sourceHost && targetHost && sourceHost.vms.length > 0) {
+                const vm = sourceHost.vms[0];
+                performMigration(vm, targetHost);
+            } else {
+                updateStatus('vMotion: No suitable hosts available');
+            }
+        }
+
+        function runDRS() {
+            const activeHosts = hosts.filter(h => h.active && !h.maintenance);
+            if (activeHosts.length < 2) {
+                updateStatus('DRS: Not enough active hosts');
+                return;
+            }
+
+            try {
+                let balanced = false;
+                let iterations = 0;
+                const maxIterations = 50;
+                const targetVMsPerHost = Math.floor(vms.length / activeHosts.length);
+
+                while (!balanced && iterations < maxIterations) {
+                    balanced = true;
+                    activeHosts.forEach(host => {
+                        while (host.vms.length > targetVMsPerHost) {
+                            const vm = host.vms[0];
+                            const targetHost = activeHosts.find(h => h.vms.length < targetVMsPerHost && h !== host);
+                            if (targetHost) {
+                                performMigration(vm, targetHost);
+                                balanced = false;
+                            } else {
+                                break;
+                            }
+                        }
+                    });
+                    iterations++;
+                }
+                renderCluster();
+                updateStatus('DRS: Resource balancing completed');
+            } catch (error) {
+                updateStatus('DRS: Error occurred during balancing');
+                console.error(error);
+            }
+        }
+
+        function performStorageVMotion() {
+            const vm = vms.find(v => {
+                const ds = datastores.find(d => d.name === v.datastore);
+                return ds.used / ds.capacity > 0.8;
+            });
+            if (!vm) {
+                updateStatus('Storage vMotion: No VM needs migration');
+                return;
+            }
+
+            const sourceDS = datastores.find(ds => ds.name === vm.datastore);
+            const targetDS = datastores
+                .filter(ds => ds !== sourceDS && ds.used + vm.storage <= ds.capacity)
+                .sort((a, b) => (a.used / a.capacity) - (b.used / b.capacity))[0];
+            
+            if (targetDS) {
+                performStorageMigration(vm, targetDS);
+            } else {
+                updateStatus('Storage vMotion: No suitable datastore available');
+            }
+        }
+
+        function runStorageDRS() {
+            const totalStorage = datastores.reduce((acc, ds) => acc + ds.used, 0);
+            const avgStorage = totalStorage / datastores.length;
+            let migrated = false;
+
+            vms.forEach(vm => {
+                const currentDS = datastores.find(ds => ds.name === vm.datastore);
+                if (currentDS.used > avgStorage * 1.2) {
+                    const targetDS = datastores
+                        .filter(ds => ds !== currentDS && ds.used + vm.storage <= ds.capacity && ds.used < avgStorage * 0.8)
+                        .sort((a, b) => (a.used / a.capacity) - (b.used / b.capacity))[0];
+                    if (targetDS) {
+                        performStorageMigration(vm, targetDS);
+                        migrated = true;
+                    }
+                }
+            });
+
+            if (migrated) {
+                updateStatus('Storage DRS: Storage balanced across datastores');
+            } else {
+                updateStatus('Storage DRS: No suitable migrations available');
+            }
+        }
+
+        function toggleMaintenance() {
+            if (!selectedHost) {
+                updateStatus('Please select a host for maintenance');
+                return;
+            }
+            if (selectedHost.active && !selectedHost.maintenance) {
+                selectedHost.maintenance = true;
+                updateStatus(`${selectedHost.id} entered maintenance mode`);
+                distributeVMs(selectedHost);
+            }
+        }
+
+        function exitMaintenance(host) {
+            if (host.maintenance) {
+                host.maintenance = false;
+                updateStatus(`${host.id} exited maintenance mode`);
+                renderCluster();
+            }
+        }
+
+        function resetEnvironment() {
+            datastores.forEach(ds => { ds.used = 0; ds.vms = []; });
+            initializeEnvironment();
+            updateStatus('Environment reset');
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        function toggleHelp() {
+            const helpGuide = document.getElementById('helpGuide');
+            helpGuide.style.display = helpGuide.style.display === 'block' ? 'none' : 'block';
+        }
+
+        document.addEventListener('click', (e) => {
+            const helpGuide = document.getElementById('helpGuide');
+            const helpIcon = document.querySelector('.help-icon');
+            if (helpGuide.style.display === 'block' && !helpGuide.contains(e.target) && !helpIcon.contains(e.target)) {
+                helpGuide.style.display = 'none';
+            }
+        });
+
+        const link = document.createElement('link');
+        link.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+
+        initializeEnvironment();
+    </script>
+</body>
+</html>
