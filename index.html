@@ -241,6 +241,20 @@
             margin-right: 5px;
             vertical-align: middle;
         }
+        .popup {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #34495e;
+            color: #fff;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-size: 1em;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -251,6 +265,7 @@
         <button onclick="runStorageDRS()">Storage DRS</button>
         <button onclick="performStorageVMotion()">Storage vMotion</button>
         <button onclick="toggleMaintenance()">Maintenance</button>
+        <button onclick="addHost()">Add Host</button>
         <button onclick="resetEnvironment()">Reset</button>
     </div>
     <div class="main-container">
@@ -267,6 +282,7 @@
                     <li>Click a VM to highlight its datastore, then drag it to another datastore for Storage vMotion.</li>
                     <li>Use "Storage vMotion" button to auto-migrate a VM’s storage.</li>
                     <li>Click a host then "Maintenance" to enter maintenance mode; use "Exit Maintenance" below the host to exit.</li>
+                    <li>Click "Add Host" to add a new ESXi host and redistribute VMs.</li>
                     <li>Press "Reset" to restore the initial state.</li>
                 </ul>
             </div>
@@ -280,6 +296,7 @@
             <div class="datastores-container" id="datastores"></div>
         </div>
     </div>
+    <div class="popup" id="popup"></div>
 
     <script>
         class VM {
@@ -324,52 +341,18 @@
         }
 
         const datastores = [
-            { 
-                name: 'NFS-01', 
-                type: 'NFS', 
-                capacity: 6000, 
-                used: 0, 
-                vms: [], 
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>'
-            },
-            { 
-                name: 'iSCSI-01', 
-                type: 'iSCSI', 
-                capacity: 4800, 
-                used: 0, 
-                vms: [], 
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M3 3h18v18H3V3zm2 2v14h14V5H5zm2 2h10v2H7V7zm0 4h10v2H7v-2zm0 4h10v2H7v-2z"/></svg>'
-            },
-            { 
-                name: 'SAN-01', 
-                type: 'SAN', 
-                capacity: 7200, 
-                used: 0, 
-                vms: [], 
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>'
-            },
-            { 
-                name: 'SAN-02', 
-                type: 'SAN', 
-                capacity: 7200, 
-                used: 0, 
-                vms: [], 
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>'
-            },
-            { 
-                name: 'SAN-03', 
-                type: 'SAN', 
-                capacity: 7200, 
-                used: 0, 
-                vms: [], 
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 85 25" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>'
-            }
+            { name: 'NFS-01', type: 'NFS', capacity: 6000, used: 0, vms: [], icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2c3e50"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>' },
+            { name: 'iSCSI-01', type: 'iSCSI', capacity: 4800, used: 0, vms: [], icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2c3e50"><path d="M3 3h18v18H3V3zm2 2v14h14V5H5zm2 2h10v2H7V7zm0 4h10v2H7v-2zm0 4h10v2H7v-2z"/></svg>' },
+            { name: 'SAN-01', type: 'SAN', capacity: 7200, used: 0, vms: [], icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>' },
+            { name: 'SAN-02', type: 'SAN', capacity: 7200, used: 0, vms: [], icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>' },
+            { name: 'SAN-03', type: 'SAN', capacity: 7200, used: 0, vms: [], icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2c3e50"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V8h12v2z"/></svg>' }
         ];
 
         let hosts = [];
         let vms = [];
         let selectedHost = null;
         let selectedVM = null;
+        let hostCounter = 6;
 
         function initializeEnvironment() {
             hosts = Array(6).fill().map((_, i) => new Host(`ESXi-${i + 1}`));
@@ -394,6 +377,7 @@
             });
             selectedHost = null;
             selectedVM = null;
+            hostCounter = 6;
             renderCluster();
         }
 
@@ -483,6 +467,15 @@
             });
         }
 
+        function showPopup(message, duration) {
+            const popup = document.getElementById('popup');
+            popup.textContent = message;
+            popup.style.display = 'block';
+            setTimeout(() => {
+                popup.style.display = 'none';
+            }, duration);
+        }
+
         function selectHost(host) {
             if (host.active && !host.maintenance) {
                 selectedHost = host;
@@ -560,21 +553,62 @@
                 const targetHost = targetHosts[hostIndex % targetHosts.length];
                 if (targetHost.vms.length < 9) {
                     targetHost.vms.push(vm);
-                    console.log(`Distributed ${vm.id} to ${targetHost.id}`);
                 } else {
-                    // Find the next available host if current one is full
                     const availableHost = targetHosts.find(h => h.vms.length < 9);
                     if (availableHost) {
                         availableHost.vms.push(vm);
-                        console.log(`Distributed ${vm.id} to ${availableHost.id}`);
                     } else {
-                        console.log(`No space for ${vm.id}`);
-                        sourceHost.vms.push(vm); // Put back if no space
+                        sourceHost.vms.push(vm);
                     }
                 }
                 hostIndex++;
             }
             renderCluster();
+        }
+
+        function redistributeVMsEvenly() {
+            const activeHosts = hosts.filter(h => h.active && !h.maintenance);
+            if (activeHosts.length === 0) {
+                updateStatus('No active hosts available');
+                return;
+            }
+
+            const allVMs = [];
+            hosts.forEach(host => {
+                allVMs.push(...host.vms);
+                host.vms = [];
+            });
+
+            const vmsPerHost = Math.floor(allVMs.length / activeHosts.length);
+            const extraVMs = allVMs.length % activeHosts.length;
+
+            let vmIndex = 0;
+            activeHosts.forEach((host, index) => {
+                const numVMs = vmsPerHost + (index < extraVMs ? 1 : 0);
+                for (let i = 0; i < numVMs && vmIndex < allVMs.length; i++) {
+                    host.vms.push(allVMs[vmIndex]);
+                    vmIndex++;
+                }
+            });
+
+            renderCluster();
+        }
+
+        function addHost() {
+            hostCounter++;
+            const newHost = new Host(`ESXi-${hostCounter}`);
+            hosts.push(newHost);
+            renderCluster(); // Render immediately to show new host
+            setTimeout(() => {
+                showPopup('Host added to vCenter', 2000);
+                setTimeout(() => {
+                    showPopup('VMs distributed to maintain balanced cluster', 2000);
+                    setTimeout(() => {
+                        redistributeVMsEvenly();
+                        updateStatus(`ESXi-${hostCounter} added and VMs redistributed`);
+                    }, 120000); // 2 minutes delay
+                }, 2000); // 2 seconds after first popup
+            }, 100); // Small delay to ensure render completes
         }
 
         function simulateHA() {
